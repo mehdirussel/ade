@@ -36,12 +36,13 @@ def my_date_format(str_date): # example: "octobre 2020" -> appropiate datetime o
 
 def set_date_to_cal(driver,date_to_input,is_end_date,timeout_for_wait=10):# if to set end date make is_end_date = 1; date_to_input should be datetime object
     print("set_date_to_cal",end=':')
-    end_or_start_list = ['Date de début','Date de fin']
-    print(end_or_start_list[is_end_date])
-    #input start and end date
+    if is_end_date:
+        print("fin")
+    else:
+        print("début")
     calendar_buttons = driver.find_elements(By.XPATH,"//input[contains(@title, 'Press Down arrow to select date from a calendar grid')]") # get the calendar icons to show calendar
     calendar_buttons[is_end_date].click()
-    #get left and right buttons by their images
+    #get left and right arrows by their images
     try:
         left_button = WebDriverWait(driver, timeout_for_wait).until(
           EC.presence_of_element_located((By.CSS_SELECTOR,".x-date-left-icon")) 
@@ -56,7 +57,7 @@ def set_date_to_cal(driver,date_to_input,is_end_date,timeout_for_wait=10):# if t
     except TimeoutException:
         print("Could not find element!!")
     
-    print("found both buttons")
+    print("found both arrows")
     # get selected month and year -> text inside calendar, in 'str(month) yyyy' format and make datetime object with it
     cal_current_date = my_date_format(driver.find_element(By.CSS_SELECTOR,"em.x-btn-arrow > button").text) # returns datetime object
 
@@ -71,16 +72,17 @@ def set_date_to_cal(driver,date_to_input,is_end_date,timeout_for_wait=10):# if t
             print("clicked on right arrow")
         else:
             break
-        # refresh calendar date
+        # refresh calendar date text
         cal_current_date = my_date_format(driver.find_element(By.CSS_SELECTOR,"em.x-btn-arrow > button").text) # returns datetime object
 
-    id_of_first_day_of_month_button = driver.find_element(By.CSS_SELECTOR,".x-date-inner tr:nth-of-type(1) .x-date-active, .x-date-inner tr:nth-of-type(2) .x-date-active").get_attribute("id") # will be smthg like this x-auto-i
+    print("reached the wanted month & year")
+    id_of_first_day_of_month_button = driver.find_element(By.CSS_SELECTOR,".x-date-inner tr:nth-of-type(1) .x-date-active, .x-date-inner tr:nth-of-type(2) .x-date-active").get_attribute("id") # will be smthg like this 'x-auto-i'
     # get the i
     i = int(id_of_first_day_of_month_button.split('-')[-1])
     #the button we want to click on is x-auto-{i+day-1}
     day_button = driver.find_element(By.ID,f"x-auto-{str(int(i+date_to_input.day)-1)}")
     day_button.click()
-    print("clickd on the wanted date")
+    print("clickd on the wanted day")
 
 def download_and_save_if_different(url, local_file_path,new_file_folder_path):
     """Download a file from the given URL and save it locally if it's different."""
