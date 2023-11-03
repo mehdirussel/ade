@@ -2,10 +2,13 @@ import time
 import datetime
 import urllib.request
 import json
+
 from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from webdriver_manager.firefox import GeckoDriverManager
 from selenium.common.exceptions import StaleElementReferenceException,ElementClickInterceptedException,TimeoutException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -100,21 +103,23 @@ def download_and_save_if_different(url, local_file_path,new_file_folder_path):
 
 class edt_retriever():
   # launches the firefox webdriver, down_path for where to save pdf and ics file
-  def __init__(self, driver_path,choix_edt, down_path,timeout=7):
-    # choix_edt doit etre liste ordonnéee des boutons cliqués (majuscule ou miniscule doesnt matter)
-    # they will all be collpased until the last one which will be clicked on
-    # eg: ["eTudiants","EnsiSa","inGénieuRS","1A","infOrMatique"]
+  def __init__(self,choix_edt, down_path,timeout=4,driver_path=0,headless_mode=1):
+    """
+    Args:
+        choix_edt (list): doit etre liste ordonnéee des boutons cliqués (majuscule ou miniscule doesnt matter), they will all be collpased until the last one which will be clicked on; eg: ["eTudiants","EnsiSa","inGénieuRS","1A","infOrMatique"]
+        timeout (int): maximum time in seconds for selenium to wait for elements to appear, should be at least 8 for all the functions to work : login(needs 4s) and get_ics(sometimes needs 8s)
+        down_path (string): Path where downloaded files will be stored
+        driver_path (string): is the path of the firefox driver, if no value is given then webdriver_manager is used
+
+    """
     self.timeout = timeout
     self.down_path = down_path
     self.choix_edt = choix_edt
-    self.edt_vide = 0 # var pour indiquer si edt est vide(vacances...)
     
-    
-    servic = Service(driver_path)
-
     # browser settings
     opts = webdriver.FirefoxOptions()
-    opts.add_argument("--headless")
+    if headless_mode:
+        opts.add_argument("--headless")
     # set lang to french
     # important car sinon c'est anglais = cant click on 1st row
     opts.set_preference('intl.accept_languages', 'fr-fr')
@@ -123,25 +128,27 @@ class edt_retriever():
     opts.set_preference("browser.helperApps.alwaysAsk.force", False)
     opts.set_preference("pdfjs.disabled", True)
     opts.set_preference("pdfjs.enabledCache.state",False)
-    opts.set_preference(
-        "browser.download.improvements_to_download_panel", True)
+    opts.set_preference("browser.download.improvements_to_download_panel", True)
     # dir
     opts.set_preference("browser.download.folderList", 2)
     opts.set_preference("browser.download.useDownloadDir", True)
     # TODO this doesn work, file is still donwlaoded in Downloads folder
     opts.set_preference("browser.download.dir", down_path)
-    # dont ask for pdf and ics files
+    # dont ask for pdf and calendar files
     opts.set_preference("browser.helperApps.neverAsk.saveToDisk",
                        "application/pdf, text/calendar, application/octet-stream") 
 
-    self.driver = webdriver.Firefox(service=servic, options=opts)
+    if driver_path: #driver path is given
+        self.driver = webdriver.Firefox(service=Service(driver_path), options=opts)
+    else:
+        self.driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()), options=opts)
 
   def __del__(self):
     
     # logout from session
-    self.driver.get("https://cas.uha.fr/cas/logout?service=https://e-services.uha.fr/logout.html?requestedURL%3D/fr/index.html")
-    # close the webdriver
+    self.driver.get("https://cas.uha.fr/cas/logout")
     
+    # close the webdriver
     self.driver.quit()
     print("logged out and exit the program")
 
@@ -231,7 +238,7 @@ class edt_retriever():
             start_date (string): dd-mm-yyyy
             end_date (string): dd-mm-yyyy
         Returns:
-            None
+            ics file link (string): can be accessed wihout login
         """
     print("ics retrieval")
     #check dates
@@ -309,9 +316,9 @@ with open(creds_path, "r") as creds_file:
 email = credentials["username"]
 pwd = credentials["password"]
 
-edt = ["eTudiants","EnsiSa","inGénieurS","1A"]
+edt = ["eTudiants","EnsiSa","inGénieurS","1A","InFormatiqUe"]
 
-test = edt_retriever("geckodriver.exe",edt,"./")
+test = edt_retriever(edt,"C:/Users/mehdi/Desktop/edt ensisa/",4,headless_mode=0)
 
 test.login(email,pwd)
 print(test.get_ics("11-11-2023","12-12-2023"))
