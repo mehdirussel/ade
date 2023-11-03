@@ -6,7 +6,6 @@ from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
 from selenium.common.exceptions import StaleElementReferenceException,ElementClickInterceptedException,TimeoutException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
