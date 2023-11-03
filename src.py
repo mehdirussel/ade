@@ -13,7 +13,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 
-def my_date_format(str_date):
+def my_date_format(str_date): # example: "octobre 2020" -> appropiate datetime object
     months_list = [
     'janvier',
     'février',
