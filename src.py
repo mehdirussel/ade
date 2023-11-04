@@ -167,13 +167,11 @@ class edt_retriever():
       print("logged in successfully")
 
     # attendre redirection
-    WebDriverWait(self.driver, 100).until(
+    WebDriverWait(self.driver, 20).until(
         EC.url_matches("https://www.emploisdutemps.uha.fr/*")
         )
-    # acces a l"emploi de temps souhaité
-
-    # Set the self.timeout
     
+    # accès a l"emploi de temps souhaité
 
     # Wait for the presence of the element before clicking
     for idx,elt in enumerate(self.choix_edt):
@@ -200,12 +198,20 @@ class edt_retriever():
 
     WebDriverWait(self.driver, self.timeout).until(  # wait 8 seconds for planning to load
         EC.presence_of_element_located(
-            (By.CLASS_NAME, "grilleDispo"))
+            (By.CLASS_NAME, "grilleDispo")
+        )
     )
     print("found the planning grid")
     
     
-  def get_pdf(self):  # get pdf
+  def get_pdf(self):
+    """
+        Args:
+            None
+        Returns:
+            None - downloads current week's pdf timetable into the directory specified at init
+        """
+
     print("pdf retrieval")
     # find pdf button
     pdf_button = self.driver.find_element(By.ID,'x-auto-28') # will find a table
@@ -223,7 +229,9 @@ class edt_retriever():
     
   
     ok_button = WebDriverWait(self.driver, self.timeout).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[contains(.,\'Ok\')]"))
+        EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(.,\'Ok\')]")
+        )
     )
     # click ok
     ok_button.click()
