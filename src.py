@@ -33,6 +33,8 @@ def my_date_format(str_date): # example: "octobre 2020" -> appropiate datetime o
 
     return datetime.datetime.strptime(str(month) + ' ' + str(year), "%m %Y")
 
+
+#TODO(change the way to input the date, use js command)
 def set_date_to_cal(driver,date_to_input,is_end_date,timeout_for_wait=10):# if to set end date make is_end_date = 1; date_to_input should be datetime object
     print("set_date_to_cal",end=':')
     if is_end_date:
