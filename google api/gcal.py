@@ -6,7 +6,7 @@ from beautiful_date import Apr,Jan,Feb, hours
 
 
 #add the path to your client secret json file here
-
+#google_creds_file = ""
 gc = GoogleCalendar(credentials_path=google_creds_file)
 
 # ading a test event to the calendar
