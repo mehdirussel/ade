@@ -1,15 +1,4 @@
-import time
-import datetime
-import urllib.request
-import json
-
-from selenium import webdriver
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from webdriver_manager.firefox import GeckoDriverManager
-from selenium.common.exceptions import StaleElementReferenceException,ElementClickInterceptedException,TimeoutException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from common_imports import *
 
 
 def my_date_format(str_date): # example: "octobre 2020" -> appropiate datetime object
@@ -31,16 +20,15 @@ def my_date_format(str_date): # example: "octobre 2020" -> appropiate datetime o
     month = months_list.index(list_words[0]) + 1
     year = list_words[1]
 
-    return datetime.datetime.strptime(str(month) + ' ' + str(year), "%m %Y")
+    return datetime.strptime(str(month) + ' ' + str(year), "%m %Y")
 
-
-#TODO(change the way to input the date, use js command)
 def set_date_to_cal(driver,date_to_input,is_end_date,timeout_for_wait=10):# if to set end date make is_end_date = 1; date_to_input should be datetime object
     print("set_date_to_cal",end=':')
     if is_end_date:
         print("fin")
     else:
         print("début")
+    time.sleep(3)
     calendar_buttons = driver.find_elements(By.XPATH,"//input[contains(@title, 'Press Down arrow to select date from a calendar grid')]") # get the calendar icons to show calendar
     calendar_buttons[is_end_date].click()
     #get left and right arrows by their images
@@ -82,6 +70,7 @@ def set_date_to_cal(driver,date_to_input,is_end_date,timeout_for_wait=10):# if t
     i = int(id_of_first_day_of_month_button.split('-')[-1])
     #the button we want to click on is x-auto-{i+day-1}
     day_button = driver.find_element(By.ID,f"x-auto-{str(int(i+date_to_input.day)-1)}")
+    #time.sleep(20000)
     day_button.click()
     print("clickd on the wanted day")
 
@@ -101,12 +90,81 @@ def download_and_save_if_different(url, local_file_path,new_file_folder_path):
     else:
         print("Files are identical. No need to download.")
 
+def keep_doing_until(elt,arg_list): 
+    # arg_list is list of arguments:
+    # in this case args_list = [function_tokeep_doing,[stop_condition,[stopc_args_mode,string,stop_args]]]
+    action,[stop_condition,[stopc_args_mode,stop_args]] = arg_list
+
+    stopc_args_options = {
+        "elt":elt,
+        "custom_args":stop_args,
+        "both":[elt,stop_args]
+    }
+
+    try:
+        while not stop_condition(stopc_args_options[stopc_args_mode]):
+            if action=="click":
+                elt.click()
+                print("clicked on the element !")
+            else: # click on a 
+                action(elt)
+                print("acted on the element !")
+    except StaleElementReferenceException: # here you can add other exceptions that act as stop condition too
+        return
+
+def generic_ec_wait_and_act(driver,timeout,element_selector_tuple,action_todo=None,actual_name=None):
+    # actual name is an extra name used for print and debugging
+    # action_todo syntax: [action_string,action_args]
+    selector_name = actual_name if actual_name else element_selector_tuple[1]
+    if action_todo and len(action_todo):
+        action_on_it = True
+        action,action_args = action_todo
+    else:
+        action_on_it = False
+    
+    try:
+        elt = WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located(element_selector_tuple)
+        )
+        action_mapping_dict = {
+            "click":elt.click, # action_args = None
+            "text-input":elt.send_keys, # action_args = string to input
+            "keep-doing-until":partial(keep_doing_until,elt) # action_args = [function_tokeep_doing,[stop_condition,[stopc_args_mode,stop_args]]]
+            # stopc_args_mode allows to determine what arguments stop_condition need
+            # stopc_args_mode can be either:
+            #   - "elt"  
+            #   - "custom_args" for custom arguments, also use this in case there are no arguments, simply add an empty argument in your stop condition implementation
+            #   - "both": the list [elt,stop_args] is the arument 
+
+            
+        }
+        print("found: ",selector_name)
+        if action_on_it:
+            if action_args:
+                action_mapping_dict[action](action_args)
+                print("acted on it: ",action," with arguments ", action_args if action!="keep-doing-until" else "(too many arguments to print)")
+            else: # action_args is none
+                action_mapping_dict[action]()
+                print("acted on it with no arguments: ",action)
+        print("******************")
+        return elt
+    except TimeoutException:
+        print(selector_name," not found!")
+        return None
 
 
+def array_ec_action(driver,timeout,selectors_list_with_action):
+    #input list: [selector_tuple,[action_string,action_args]]
+    for s,a,name in selectors_list_with_action:
+        generic_ec_wait_and_act(driver,timeout,s,a,actname)
+
+def check_presence(arg_list):
+    driver,selector = arg_list
+    return len(driver.find_elements(*selector)) # asterisk to unpack the tuple elements instead of inputing the tuple whole
 
 class edt_retriever():
   # launches the firefox webdriver, down_path for where to save pdf and ics file
-  def __init__(self,choix_edt, down_path,timeout=4,driver_path=0,headless_mode=1):
+  def __init__(self,choix_edt, down_path,timeout=15,driver_path=0,headless_mode=1):
     """
     Args:
         choix_edt (list): doit etre liste ordonnéee des boutons cliqués (majuscule ou miniscule doesnt matter), they will all be collpased until the last one which will be clicked on; eg: ["eTudiants","EnsiSa","inGénieuRS","1A","infOrMatique"]
@@ -145,6 +203,9 @@ class edt_retriever():
         self.driver = webdriver.Firefox(service=Service(driver_path), options=opts)
     else:
         self.driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()), options=opts)
+    self.driver.set_window_size(800, 800)
+    print('browser started')
+
 
   def __del__(self):
     
@@ -155,7 +216,14 @@ class edt_retriever():
     self.driver.quit()
     print("logged out and exit the program")
 
-  def login(self, email, passwd):  # login au site et sélectionne l'edt
+  def login(self,creds_path):  # login au site et sélectionne l'edt
+    
+    with open(creds_path, "r") as creds_file:
+        credentials = json.load(creds_file)
+    email = credentials["username"]
+    passwd = credentials["password"]
+    print("found credentials file")
+    
     # enter login website
     self.driver.get(
         "https://cas.uha.fr/cas/login?service=https%3A%2F%2Fwww.emploisdutemps.uha.fr%2Fdirect%2F")
@@ -204,7 +272,7 @@ class edt_retriever():
     )
     print("found the planning grid")
     
-    
+
   def get_pdf(self):
     """
         Args:
@@ -214,35 +282,23 @@ class edt_retriever():
         """
 
     print("pdf retrieval")
-    # find pdf button
-    pdf_button = self.driver.find_element(By.ID,'x-auto-28') # will find a table
-    # keep ckicking until window show up :)
-    pdf_button.click()
-    print("clicked on print button! (1st time)")
-    try:
-        while not len(self.driver.find_elements(by=By.XPATH, value="//span[contains(.,'Génération du planning dans un fichier PDF')]")):
-            pdf_button.click()
-            print("clicked again on print button !")
-    except StaleElementReferenceException:
-        pass
-    print("found the pdf window!! ")
-    
-    
-  
-    ok_button = WebDriverWait(self.driver, self.timeout).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//button[contains(.,\'Ok\')]")
-        )
-    )
-    # click ok
-    ok_button.click()
-    print("pressed ok btton")
+
+    # pdf button
+    generic_ec_wait_and_act(self.driver,self.timeout,(By.ID,"x-auto-28"),["keep-doing-until", # [function_tokeep_doing,[stop_condition,[stopc_args_mode,stop_args]]]
+        ["click",
+            [check_presence,
+                ["custom_args",[self.driver,(By.XPATH,"//span[contains(.,'Génération du planning dans un fichier PDF')]")]]
+            ]
+        ]
+    ],actual_name="pdf window button")
+    # ok button
+    generic_ec_wait_and_act(self.driver,self.timeout,(By.XPATH, "//button[contains(.,\'Ok\')]"),["click",None],actual_name="ok button")
     # wait till pdf downloaded
-    time.sleep(5) 
+    time.sleep(5)
     # TODO find a better way to detect if file is downloaded
     print("file donwloaded")
 
-  def get_ics(self, start_date, end_date):  # get ics file
+  def get_ics(self, start_date, end_date,save_ics_to_path=0):  # get ics file
     """
         Args:
             function (callable): Get latest version of planning and compares it to old ics file if specified. The old file needs to have the same start and end dates !!
@@ -255,8 +311,8 @@ class edt_retriever():
     #check dates
 
     try:
-        start = datetime.datetime.strptime(start_date, "%d-%m-%Y")
-        end = datetime.datetime.strptime(end_date, "%d-%m-%Y")
+        start = datetime.strptime(start_date, "%d-%m-%Y")
+        end = datetime.strptime(end_date, "%d-%m-%Y")
         print("Dates are valid")
     except ValueError:
         print("Dates are invalid")
@@ -264,28 +320,53 @@ class edt_retriever():
 
 
 
-    # find export button
-    export_button = self.driver.find_element(By.ID,'x-auto-29') # will find a table
-    #keep ckicking until window show up 
-    export_button.click()
-    print("clicked on export button! (1st time)")
-    try:
-        while not len(self.driver.find_elements(by=By.XPATH, value="//span[contains(.,'Export ICalendar ou VCalendar')]")):
-            export_button.click()
-            print("clicked again on export button !")
-    except StaleElementReferenceException:
-        pass
-    print("found the export window!! ")
+    # find export button; will find a table
+    generic_ec_wait_and_act(self.driver,self.timeout,(By.ID,'x-auto-29'),["keep-doing-until", # [function_tokeep_doing,[stop_condition,[stopc_args_mode,stop_args]]]
+        ["click",
+            [check_presence,
+                ["custom_args",[self.driver,(By.XPATH,"//span[contains(.,'Export ICalendar ou VCalendar')]")]]
+            ]
+        ]
+    ],actual_name="export button") 
+    
+    # input tag containing number of loaded events
+    input_num_of_loaded_events = self.driver.find_element(By.XPATH, '//label[contains(.,"Nombre d\'activités à être exportées")]/following-sibling::div//input')
+    
+    try: # wait until number of elements is loaded
+            WebDriverWait(self.driver, self.timeout).until(
+                lambda driver: input_num_of_loaded_events.get_attribute("value") != ''
+                )
+    except TimeoutException:
+        print("number of elements to import not loaded")
+    
+    og_num = input_num_of_loaded_events.get_attribute("value")
     
     set_date_to_cal(self.driver,start,0,self.timeout)
     set_date_to_cal(self.driver,end,1,self.timeout)
 
+    try: # need to xait before setting the date and after setting it
+            WebDriverWait(self.driver, self.timeout).until(
+                lambda driver: input_num_of_loaded_events.get_attribute("value") != ''
+                )
+    except TimeoutException:
+        print("number of elements to import not loaded")
+
+    try: # wait a bit incase it changes
+            WebDriverWait(self.driver, 4).until(
+                lambda driver: input_num_of_loaded_events.get_attribute("value") != og_num
+                )
+    except TimeoutException: # user chose dates that contain same num of events in this week (og_num) 
+        pass
+    
+    print(input_num_of_loaded_events.get_attribute("value")," events to be exported")
+
 
     # Generate URL
     generate_url_button = WebDriverWait(self.driver, self.timeout).until(
-        EC.presence_of_element_located((By.XPATH, "//button[contains(text(),'Générer URL')]"))
+        EC.presence_of_element_located((By.XPATH, "//button[contains(text(),'URL')]"))
     )
     generate_url_button.click()
+
 
     # Get link
     link_element = WebDriverWait(self.driver, timeout=self.timeout).until(
@@ -306,6 +387,11 @@ class edt_retriever():
     )
     btn_annuler.click()
 
+    if(save_ics_to_path):
+        filename = self.down_path + f"ade-{datetime.now().hour}.ics"
+        u_r.urlretrieve(link, filename)
+        return filename
+
     return link
     
 
@@ -318,19 +404,17 @@ credentials.json file format:
 }
 
 """
+def main():
+    creds_path = "credentials.json"
 
-creds_path = "credentials.json"
-with open(creds_path, "r") as creds_file:
-    credentials = json.load(creds_file)
+    edt = ["eTudiants","EnsiSa","inGénieurS","1A","InFormatiqUe"]
 
+    retriever = edt_retriever(edt,"C:/Users/mehdi/Desktop/edt ensisa/",15,headless_mode=0)
 
-email = credentials["username"]
-pwd = credentials["password"]
+    retriever.login(creds_path)
+    print(retriever.get_ics("02-12-2023","20-03-2024",save_ics_to_path=1))
+    # retriever.get_pdf()
+    
 
-edt = ["eTudiants","EnsiSa","inGénieurS","1A","InFormatiqUe"]
-
-test = edt_retriever(edt,"C:/Users/mehdi/Desktop/edt ensisa/",4,headless_mode=0)
-
-test.login(email,pwd)
-print(test.get_ics("11-11-2023","12-12-2023"))
-test.get_pdf()
+if __name__ == "__main__":
+    main()

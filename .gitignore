@@ -1,0 +1,5 @@
+google api/creds/
+credentials.json
+ics_files/*
+geckodriver.log
+*.ics
